@@ -150,11 +150,57 @@ func visitAll(root *cobra.Command, fn func(*cobra.Command)) {
 }
 
 func noArgs(cmd *cobra.Command, args []string) error {
+	var suggestion string
+	similarity := float32(0)
+
 	if len(args) == 0 {
 		return nil
 	}
+
+	for _, c := range cmd.Commands() {
+		if cmdSimilarity(args[0], c.Name()) > similarity {
+			similarity = cmdSimilarity(args[0], c.Name())
+			suggestion = c.Name()
+		}
+	}
+	if similarity > 0.5 {
+		return fmt.Errorf(
+			"docker: did you mean `docker %s`", suggestion)
+	}
 	return fmt.Errorf(
 		"docker: '%s' is not a docker command.\nSee 'docker --help'", args[0])
+}
+
+func cmdSimilarity(input string, cmd string) float32 {
+	p1 := getBigram(input)
+	p2 := getBigram(cmd)
+
+	union := len(p1) + len(p2) - 2
+	hit_count := 0
+
+	for i := 0; i <= len(p1) - 1; i++ {
+		for j := 0; j <= len(p2) - 1; j++ {
+			if p1[i] == p2[j] {
+				hit_count += 1
+				break
+			}
+		}
+	}
+
+	return 2.0 * float32(hit_count)/float32(union)
+
+}
+
+func getBigram(s string) []string {
+	str := strings.ToLower(s)
+	var treated_array []string
+
+
+	for i := 0; i < len(str) - 1; i++{
+		treated_array = append(treated_array, str[i:i+2])
+	}
+
+	return treated_array
 }
 
 func main() {
